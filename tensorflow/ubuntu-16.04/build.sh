@@ -12,7 +12,7 @@ gcc --version
 # Install an appropriate Python environment
 conda create --yes -n tensorflow python==$PYTHON_VERSION
 source activate tensorflow
-conda install --yes numpy wheel bazel
+conda install --yes numpy wheel bazel=0.18.0
 conda install --yes -c conda-forge keras-applications
 
 # Compile TensorFlow
@@ -81,12 +81,20 @@ if [ "$USE_GPU" -eq "1" ]; then
 
 	bazel build --config=opt \
 	    		--config=cuda \
+			--incompatible_remove_native_http_archive=false \
+			--copt=-mavx \
+			--copt=-mavx2 \
+			--copt=-mfma \
+			--copt=-mfpmath=both \
+			--copt=-msse4.1 \
+			--copt=-msse4.2 \
 	    		--action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
 	    		//tensorflow/tools/pip_package:build_pip_package
 
 else
 
 	bazel build --config=opt \
+		    	    --incompatible_remove_native_http_archive=false \
 			    --action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
 			    //tensorflow/tools/pip_package:build_pip_package
 
