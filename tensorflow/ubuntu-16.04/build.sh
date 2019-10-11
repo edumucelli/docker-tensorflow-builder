@@ -12,7 +12,7 @@ gcc --version
 # Install an appropriate Python environment
 conda create --yes -n tensorflow python==$PYTHON_VERSION
 source activate tensorflow
-conda install --yes numpy wheel bazel=0.18.0
+conda install --yes numpy wheel bazel=0.15.0
 conda install --yes -c conda-forge keras-applications
 
 # Compile TensorFlow
@@ -36,11 +36,11 @@ export PYTHON_ARG=${TF_ROOT}/lib
 
 # Compilation parameters
 export TF_NEED_CUDA=0
-export TF_NEED_GCP=1
-export TF_CUDA_COMPUTE_CAPABILITIES=5.2,3.5
-export TF_NEED_HDFS=1
+export TF_NEED_GCP=0
+export TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1,7.0
+export TF_NEED_HDFS=0
 export TF_NEED_OPENCL=0
-export TF_NEED_JEMALLOC=1  # Need to be disabled on CentOS 6.6
+export TF_NEED_JEMALLOC=0  # Need to be disabled on CentOS 6.6
 export TF_ENABLE_XLA=0
 export TF_NEED_VERBS=0
 export TF_CUDA_CLANG=0
@@ -48,8 +48,8 @@ export TF_DOWNLOAD_CLANG=0
 export TF_NEED_MKL=0
 export TF_DOWNLOAD_MKL=0
 export TF_NEED_MPI=0
-export TF_NEED_S3=1
-export TF_NEED_KAFKA=1
+export TF_NEED_S3=0
+export TF_NEED_KAFKA=0
 export TF_NEED_GDR=0
 export TF_NEED_OPENCL_SYCL=0
 export TF_SET_ANDROID_WORKSPACE=0
@@ -77,6 +77,8 @@ fi
 # Compilation
 ./configure
 
+ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
+
 if [ "$USE_GPU" -eq "1" ]; then
 
 	bazel build --config=opt \
@@ -88,7 +90,7 @@ if [ "$USE_GPU" -eq "1" ]; then
 			--copt=-mfpmath=both \
 			--copt=-msse4.1 \
 			--copt=-msse4.2 \
-	    		--action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
+	    		--action_env="LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64:/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH}" \
 	    		//tensorflow/tools/pip_package:build_pip_package
 
 else
@@ -99,6 +101,10 @@ else
 			    //tensorflow/tools/pip_package:build_pip_package
 
 fi
+
+bazel build --config=opt //tensorflow:libtensorflow_cc.so
+bazel build --config=opt //tensorflow:libtensorflow.so
+bazel build --config=opt //tensorflow:libtensorflow_framework.so
 
 # Project name can only be set for TF > 1.8
 #PROJECT_NAME="tensorflow_gpu_cuda_${TF_CUDA_VERSION}_cudnn_${TF_CUDNN_VERSION}"
