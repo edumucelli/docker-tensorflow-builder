@@ -1,4 +1,4 @@
-FROM centos:6.6
+FROM centos:7.4.1708
 
 RUN yum update -y && \
     yum install -y \
@@ -12,7 +12,7 @@ RUN yum update -y && \
     gcc-c++ \
     which && \
     yum -y install centos-release-scl && \
-    yum -y install devtoolset-6-gcc devtoolset-6-gcc-c++ && \
+    yum -y install devtoolset-4-gcc devtoolset-4-gcc-c++ && \
     yum clean all
 
 # Install Anaconda

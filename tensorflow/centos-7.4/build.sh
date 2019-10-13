@@ -11,6 +11,6 @@ if [ "$USE_GPU" -eq "1" ]; then
   cd /
 fi
 
-# Enable GCC 6
+# Enable GCC 5
 chmod +x /build2.sh
-scl enable devtoolset-6 ./build2.sh
+scl enable devtoolset-4 ./build2.sh

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -ex
+set -e
 
 export PATH="/conda/bin:/usr/bin:$PATH"
 
@@ -11,13 +11,18 @@ if [ "$USE_GPU" -eq "1" ]; then
   cd /
 fi
 
+# Set correct GCC version
+GCC_VERSION="7"
+update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$GCC_VERSION 10
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$GCC_VERSION 10
+update-alternatives --set gcc "/usr/bin/gcc-$GCC_VERSION"
+update-alternatives --set g++ "/usr/bin/g++-$GCC_VERSION"
 gcc --version
 
 # Install an appropriate Python environment
 conda config --add channels conda-forge
 conda create --yes -n tensorflow python==$PYTHON_VERSION
 source activate tensorflow
-conda install --yes numpy wheel bazel=0.15.0
 conda install --yes numpy wheel bazel==$BAZEL_VERSION
 pip install keras-applications keras-preprocessing
 
@@ -42,11 +47,11 @@ export PYTHON_ARG=${TF_ROOT}/lib
 
 # Compilation parameters
 export TF_NEED_CUDA=0
-export TF_NEED_GCP=0
-export TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1,7.0
-export TF_NEED_HDFS=0
+export TF_NEED_GCP=1
+export TF_CUDA_COMPUTE_CAPABILITIES=5.2,3.5
+export TF_NEED_HDFS=1
 export TF_NEED_OPENCL=0
-export TF_NEED_JEMALLOC=0  # Need to be disabled on CentOS 6.6
+export TF_NEED_JEMALLOC=1  # Need to be disabled on CentOS 6.6
 export TF_ENABLE_XLA=0
 export TF_NEED_VERBS=0
 export TF_CUDA_CLANG=0
@@ -54,8 +59,8 @@ export TF_DOWNLOAD_CLANG=0
 export TF_NEED_MKL=0
 export TF_DOWNLOAD_MKL=0
 export TF_NEED_MPI=0
-export TF_NEED_S3=0
-export TF_NEED_KAFKA=0
+export TF_NEED_S3=1
+export TF_NEED_KAFKA=1
 export TF_NEED_GDR=0
 export TF_NEED_OPENCL_SYCL=0
 export TF_SET_ANDROID_WORKSPACE=0
@@ -70,63 +75,59 @@ export GCC_HOST_COMPILER_PATH=$(which gcc)
 export CC_OPT_FLAGS="-march=native"
 
 if [ "$USE_GPU" -eq "1" ]; then
-    # Cuda parameters
-    export CUDA_TOOLKIT_PATH=/usr/local/cuda
-    export CUDNN_INSTALL_PATH=/usr/local/cuda
-    export TF_CUDA_VERSION="$CUDA_VERSION"
-    export TF_CUDNN_VERSION="$CUDNN_VERSION"
-    export TF_NEED_CUDA=1
-    export TF_NEED_TENSORRT=0
-    export TF_NCCL_VERSION=1.3
-    export NCCL_INSTALL_PATH=$CUDA_HOME
-    export NCCL_INSTALL_PATH=$CUDA_HOME
+  # Cuda parameters
+  export CUDA_TOOLKIT_PATH=$CUDA_HOME
+  export CUDNN_INSTALL_PATH=$CUDA_HOME
+  export TF_CUDA_VERSION="$CUDA_VERSION"
+  export TF_CUDNN_VERSION="$CUDNN_VERSION"
+  export TF_NEED_CUDA=1
+  export TF_NEED_TENSORRT=0
+  export TF_NCCL_VERSION=$NCCL_VERSION
+  export NCCL_INSTALL_PATH=$CUDA_HOME
+  export NCCL_INSTALL_PATH=$CUDA_HOME
 
-    # Those two lines are important for the linking step.
-    export LD_LIBRARY_PATH="$CUDA_TOOLKIT_PATH/lib64:${LD_LIBRARY_PATH}"
-    ldconfig
+  # Those two lines are important for the linking step.
+  export LD_LIBRARY_PATH="$CUDA_TOOLKIT_PATH/lib64:${LD_LIBRARY_PATH}"
+  ldconfig
 fi
 
 # Compilation
 ./configure
 
-ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
-
 if [ "$USE_GPU" -eq "1" ]; then
 
-<<<<<<< HEAD
-	bazel build --config=opt \
-	    		--config=cuda \
-			--incompatible_remove_native_http_archive=false \
-			--copt=-mavx \
-			--copt=-mavx2 \
-			--copt=-mfma \
-			--copt=-mfpmath=both \
-			--copt=-msse4.1 \
-			--copt=-msse4.2 \
-	    		--action_env="LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64:/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH}" \
-	    		//tensorflow/tools/pip_package:build_pip_package
+  bazel build --config=opt \
+              --config=cuda \
+              --linkopt="-lrt" \
+              --linkopt="-lm" \
+              --host_linkopt="-lrt" \
+              --host_linkopt="-lm" \
+              --action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
+              //tensorflow/tools/pip_package:build_pip_package
+
+  PACKAGE_NAME=tensorflow-gpu
+  SUBFOLDER_NAME="${TF_VERSION_GIT_TAG}-py${PYTHON_VERSION}-cuda${TF_CUDA_VERSION}-cudnn${TF_CUDNN_VERSION}"
 
 else
 
-	bazel build --config=opt \
-		    	    --incompatible_remove_native_http_archive=false \
-			    --action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
-			    //tensorflow/tools/pip_package:build_pip_package
+  bazel build --config=opt \
+              --linkopt="-lrt" \
+              --linkopt="-lm" \
+              --host_linkopt="-lrt" \
+              --host_linkopt="-lm" \
+              --action_env="LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
+              //tensorflow/tools/pip_package:build_pip_package
 
-    PACKAGE_NAME=tensorflow
-    SUBFOLDER_NAME="${TF_VERSION_GIT_TAG}-py${PYTHON_VERSION}"
+  PACKAGE_NAME=tensorflow
+  SUBFOLDER_NAME="${TF_VERSION_GIT_TAG}-py${PYTHON_VERSION}"
 fi
 
-bazel build --config=opt //tensorflow:libtensorflow_cc.so
-bazel build --config=opt //tensorflow:libtensorflow.so
-bazel build --config=opt //tensorflow:libtensorflow_framework.so
 mkdir -p "/wheels/$SUBFOLDER_NAME"
 
-# Project name can only be set for TF > 1.8
 bazel-bin/tensorflow/tools/pip_package/build_pip_package "/wheels/$SUBFOLDER_NAME" --project_name "$PACKAGE_NAME"
 
 # Use the following for TF <= 1.8
-#bazel-bin/tensorflow/tools/pip_package/build_pip_package "/wheels/$SUBFOLDER_NAME"
+# bazel-bin/tensorflow/tools/pip_package/build_pip_package "/wheels/$SUBFOLDER_NAME"
 
 # Fix wheel folder permissions
 chmod -R 777 /wheels/
